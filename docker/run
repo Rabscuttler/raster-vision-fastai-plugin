@@ -7,6 +7,9 @@
 # * removes the --docs option
 # * uses $REPO_ROOT/notebooks as the notebooks dir
 
+# Set  --ipc=host in docker/run command due to pytorch memory error
+# https://forums.fast.ai/t/runtimeerror-dataloader-worker-pid-137-is-killed-by-signal-bus-error/27095/3
+
 set -e
 
 if [[ -n "${RASTER_VISION_DEBUG}" ]]; then
@@ -109,7 +112,7 @@ fi
 
 if [ "${BASH_SOURCE[0]}" = "${0}" ]
 then
-    docker run ${RUNTIME} ${NAME} --rm -it \
+    docker run ${RUNTIME} ${NAME} --ipc=host --rm -it \
         -v "${HOME}"/.rastervision:/root/.rastervision \
         -v "${REPO_ROOT}"/fastai_plugin:/opt/src/fastai_plugin \
         -v "${REPO_ROOT}"/examples:/opt/src/examples \

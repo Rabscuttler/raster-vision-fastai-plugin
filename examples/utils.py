@@ -80,7 +80,7 @@ def save_image_crop(image_uri, crop_uri, label_uri=None, size=600,
                     w = w.rasterio_format()
                     im = im_dataset.read(window=w)
 
-                    if np.mean(np.sum(im, axis=2).ravel() == 0) < 0.5:
+                    if np.mean(np.sum(im, axis=2).ravel() == 0) < 0.9:
                         with tempfile.TemporaryDirectory() as tmp_dir:
                             crop_path = get_local_path(crop_uri, tmp_dir)
                             make_dir(crop_path, use_dirname=True)

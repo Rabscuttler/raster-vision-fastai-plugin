@@ -16,7 +16,7 @@ import torch
 from fastai.vision import (
     ImageList, get_transforms, models, cnn_learner, Image,
     ImageSegment)
-from fastai.callbacks import CSVLogger, TrackEpochCallback
+from fastai.callbacks import CSVLogger, TrackEpochCallback, OverSamplingCallback
 from fastai.basic_train import load_learner
 from fastai.basic_data import DatasetType
 from fastai.vision.transform import dihedral
@@ -59,6 +59,40 @@ def make_debug_chips(data, class_map, tmp_dir, train_uri, debug_prob=.5, count=2
 
     _make_debug_chips('train')
     _make_debug_chips('val')
+
+
+def get_oversampling_weights(dataset, rare_class_ids, rare_target_prop):
+    """Return weight vector for oversampling chips with rare classes.
+
+    Args:
+        dataset: PyTorch DataSet with semantic segmentation data TODO we want chip classification data
+        rare_class_ids: list of rare class ids
+        rare_target_prop: desired probability of sampling a chip covering the
+            rare classes
+    """
+    def filter_chip_inds():
+        chip_inds = []
+        for i, (x, y) in enumerate(dataset):
+            match = False
+            for class_id in rare_class_ids:
+                if np.any(y.data == class_id):
+                    match = True
+                    break
+            if match:
+                chip_inds.append(i)
+        return chip_inds
+
+    def get_sample_weights(num_samples, rare_chip_inds, rare_target_prob):
+        rare_weight = rare_target_prob / len(rare_chip_inds)
+        common_weight = (1 - rare_target_prob) / (num_samples - len(rare_chip_inds))
+        weights = torch.full((num_samples,), common_weight)
+        weights[rare_chip_inds] = rare_weight
+        return weights
+
+    chip_inds = filter_chip_inds()
+    print('prop of rare chips before oversampling: ', len(chip_inds) / len(dataset))
+    weights = get_sample_weights(len(dataset), chip_inds, rare_target_prop)
+    return weights
 
 
 def merge_class_dirs(scene_class_dirs, output_dir):
@@ -308,14 +342,14 @@ class ChipClassificationBackend(Backend):
         num_workers = 0 if self.train_opts.debug else 4
         tfms = get_transforms(flip_vert=self.train_opts.flip_vert)
 
-        def get_data(train_sampler=None):
+        def get_data():
             data = (ImageList.from_folder(chip_dir)
                     .split_by_folder(train='train', valid='val')
                     .label_from_folder()
                     .transform(tfms, size=size)
                     .databunch(bs=self.train_opts.batch_sz,
-                               num_workers=num_workers,
-                               train_sampler=train_sampler))
+                               num_workers=num_workers)
+                    )
             return data
 
         data = get_data()
@@ -363,6 +397,14 @@ class ChipClassificationBackend(Backend):
             SyncCallback(train_dir, self.backend_opts.train_uri,
                          self.train_opts.sync_interval)
         ]
+
+        oversample = self.train_opts.oversample
+        if oversample:
+            weights = get_oversampling_weights(
+                data.train_ds, oversample['rare_class_ids'],
+                oversample['rare_target_prop'])
+            oversample_callback = OverSamplingCallback(learn, weights=weights)
+            callbacks.append(oversample_callback)
 
         lr = self.train_opts.lr
         num_epochs = self.train_opts.num_epochs

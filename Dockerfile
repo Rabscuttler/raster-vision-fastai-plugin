@@ -61,7 +61,8 @@ RUN pip install ptvsd==4.2.*
 # See https://github.com/mapbox/rasterio/issues/1289
 ENV CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
 
-ARG FASTAI_COMMIT=585d107709c9af8d88ddf2e20eb06b4ad7f4f70f
+#ARG FASTAI_COMMIT=585d107709c9af8d88ddf2e20eb06b4ad7f4f70f
+ARG FASTAI_COMMIT=1.0.57
 RUN cd /tmp && \
     wget https://github.com/fastai/fastai/archive/$FASTAI_COMMIT.zip && \
     unzip $FASTAI_COMMIT.zip && \
